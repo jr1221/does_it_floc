@@ -1,5 +1,6 @@
 name: does_it_floc
-description: Google is attempting to adopt a new tracking standard, abbrev. FLoc.  This extension tells you what websites are using Javascript API.
+description: Scans website for FLoC API or FLoC blocking policy.
+
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `pub publish`. This is preferred for private packages.
