@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Does it FLoC",
-  "version": "1.0",
+  "version": "0.1",
   "description": "Scans website for FLoC API or FLoC blocking policy.",
   "browser_action": {
     "default_popup" : "index.html",
@@ -12,8 +12,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png" },
   "permissions": [
-    "activeTab",
-    "<all_urls>"
+    "activeTab"
   ],
   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
   "offline_enabled": false
