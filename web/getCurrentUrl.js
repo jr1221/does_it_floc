@@ -1,13 +1,7 @@
-// Get current Url using chrome.tabs API, and give the callback
+// Get current Url using chrome.tabs API, and give the tab url
 
 async function getCurrentUrl() {
-      let queryOptions = { active: true, currentWindow: true };
-      await chrome.tabs.query(queryOptions, currentQueryCallback);
-      return true;
-}
-
-// Callback for above chrome API usage, which calls the JS interop function name, passing in the url
-
-function currentQueryCallback(tab) {
-   dartCallWithUrl(tab[0].url);
+  let queryOptions = { active: true, currentWindow: true };
+  let [tab] = await chrome.tabs.query(queryOptions);
+  return tab.url;
 }

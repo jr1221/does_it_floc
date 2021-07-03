@@ -12,13 +12,9 @@ import 'package:quiver/strings.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:html/dom.dart' as dom show Element;
 
-// JS interop for callback
-@JS('dartCallWithUrl')
-external set _dartCallWithUrl(void Function(String) f);
-
-// JS interop for requesting callback with URL
+// JS interop for requesting url
 @JS()
-external bool getCurrentUrl();
+external Future<String> getCurrentUrl();
 
 void main() {
   runApp(MyApp());
@@ -38,7 +34,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key? key, required this.title}) : super(key: key);
 
@@ -55,15 +50,15 @@ class _MyHomePageState extends State<MyHomePage> {
   int progressJS = 0;
   int totalJS = 0;
 
-  String siteUrl = '';
-
   String errMessage = '';
 
   late Stream<int> checkStream;
 
   Stream<int> runDown(Duration interval) async* {
     try {
-      await promiseToFuture(getCurrentUrl());
+
+      String siteUrl = await promiseToFuture(getCurrentUrl());
+
       yield 1;
       await Future.delayed(interval);
 
@@ -75,8 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
       // check if the website has a permissions-policy : interest-cohort=() set to block the data collection of FLoC
       yield 3;
       if (urlResponse.headers.containsKey('permissions-policy') &&
-          equalsIgnoreCase(
-              urlResponse.headers['permissions-policy'],
+          equalsIgnoreCase(urlResponse.headers['permissions-policy'],
               'interest-cohort=()')) {
         setState(() {
           isFlocBlocked = true;
@@ -85,7 +79,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
       //  iterate through all script tags
       final listOfScriptElements =
-      parse(urlResponse.body).getElementsByTagName('script');
+          parse(urlResponse.body).getElementsByTagName('script');
       totalJS = listOfScriptElements.length;
       yield 4;
       for (dom.Element e in listOfScriptElements) {
@@ -114,7 +108,6 @@ class _MyHomePageState extends State<MyHomePage> {
             jsUrl = Uri.parse(siteUrl + jsSrcUr);
 
           // get the source code of the jsUrl and search for the FLoC usage API
-          print(jsUrl);
           final respJS = await http.get(jsUrl);
           if (respJS.body.contains('document.interestCohort()')) {
             isFloc = true;
@@ -135,14 +128,8 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _recieveUrl(String tab) {
-    siteUrl = tab;
-    print(siteUrl);
-  }
-
   @override
   void initState() {
-    _dartCallWithUrl = allowInterop(_recieveUrl);
     checkStream = runDown(Duration(seconds: 1));
     super.initState();
   }
@@ -163,137 +150,128 @@ class _MyHomePageState extends State<MyHomePage> {
         preferredSize: Size.fromHeight(25),
       ),
       body: Center(
-          child: DefaultTextStyle(
-              style: TextStyle(color: Colors.black),
-              textAlign: TextAlign.center,
-              child: Container(
-                child: StreamBuilder<int>(
-                  stream: checkStream,
-                  builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
-                    List<Widget> children = [];
-                    bool isErr = false;
-                    if (snapshot.hasData) {
-                      switch (snapshot.connectionState) {
-                        case ConnectionState.active:
-                          switch (snapshot.data) {
-                            case 1:
-                              children = [Text("Retrieving page URL...")];
-                              break;
-                            case 2:
-                              children = [
-                                Text("Retrieving page source code...")
-                              ];
-                              break;
-                            case 3:
-                              children = [
-                                Text(
-                                    "Checking page for FLoC blocking header...")
-                              ];
-                              break;
-                            case 4:
-                              children = [
-                                Text(
-                                    "Retrieving & scanning scripts (${((progressJS / totalJS.toDouble()) * 100).round()}%)"),
-                              ];
-                              break;
-                            default:
-                              isErr = true;
+        child: DefaultTextStyle(
+          style: TextStyle(color: Colors.black),
+          textAlign: TextAlign.center,
+          child: Container(
+            child: StreamBuilder<int>(
+              stream: checkStream,
+              builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
+                List<Widget> children = [];
+                if (snapshot.hasData) {
+                  switch (snapshot.connectionState) {
+                    case ConnectionState.active:
+                      switch (snapshot.data) {
+                        case 1:
+                          children = [Text("Retrieving page URL...")];
+                          break;
+                        case 2:
+                          children = [Text("Retrieving page source code...")];
+                          break;
+                        case 3:
+                          children = [
+                            Text("Checking page for FLoC blocking header...")
+                          ];
+                          break;
+                        case 4:
+                          children = [
+                            Text(
+                                "Retrieving & scanning scripts (${((progressJS / totalJS.toDouble()) * 100).round()}%)"),
+                          ];
+                          break;
+                        default:
+                      }
+                      break;
+                    case ConnectionState.none:
+                      break;
+                    case ConnectionState.waiting:
+                      break;
+                    case ConnectionState.done:
+                      switch (snapshot.data) {
+                        case 5:
+                          if (isFlocBlocked) {
+                            children = [
+                              Icon(Icons.thumb_up_sharp,
+                                  color: Colors.green, size: 40),
+                              SizedBox(
+                                height: 15,
+                              ),
+                              Text(
+                                  'This website is blocking FLoC data collection'),
+                            ];
+                          } else if (isFloc) {
+                            children = [
+                              Icon(Icons.warning,
+                                  color: Colors.orange, size: 40),
+                              SizedBox(height: 15),
+                              Text(
+                                  'This website has included code from the FLoC Javascript API'),
+                            ];
+                          } else {
+                            children = [
+                              Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 40,
+                              ),
+                              SizedBox(height: 15),
+                              Text(
+                                  'This website does not seem to be using the FLoC Javascript API')
+                            ];
                           }
                           break;
-                        case ConnectionState.none:
-                          isErr = true;
-                          break;
-                        case ConnectionState.waiting:
-                          isErr = true;
-                          break;
-                        case ConnectionState.done:
-                          switch (snapshot.data) {
-                            case 5:
-                              if (isFlocBlocked) {
-                                children = [
-                                  Icon(Icons.thumb_up_sharp,
-                                      color: Colors.green, size: 40),
-                                  SizedBox(
-                                    height: 15,
-                                  ),
-                                  Text(
-                                      'This website is blocking FLoC data collection'),
-                                ];
-                              } else if (isFloc) {
-                                children = [
-                                  Icon(Icons.warning,
-                                      color: Colors.orange, size: 40),
-                                  SizedBox(height: 15),
-                                  Text(
-                                      'This website has included code from the FLoC Javascript API'),
-                                ];
-                              } else {
-                                children = [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green,
-                                    size: 40,
-                                  ),
-                                  SizedBox(height: 15),
-                                  Text(
-                                      'This website does not seem to be using the FLoC Javascript API')
-                                ];
-                              }
-                              break;
-                            default:
-                              isErr = true;
-                          }
-                          break;
+                        default:
                       }
-                    } else {
-                      children = <Widget>[
-                        SizedBox(
-                          child: CircularProgressIndicator(),
-                          width: 40,
-                          height: 40,
-                        ),
-                        SizedBox(
-                          height: 15,
-                        ),
-                        Text('Beginning website scan'),
-                      ];
-                    }
-                    if (children.isEmpty) {
-                      children = [
-                        SizedBox(
-                          height: 25,
-                        ),
-                        Icon(Icons.error, color: Colors.red, size: 40),
-                        if (errMessage.isEmpty)
-                        Text("Encountered Unknown Issue"),
-                        if (errMessage.isNotEmpty)
-                          Text("Encountered issue:"),
-                        if (errMessage.isNotEmpty)
-                          Text(errMessage.toString()),
-                      ];
-                    } else {
-                      if (snapshot.data != 5) {
-                        children.insertAll(0, [
-                          SizedBox(
-                            child: CircularProgressIndicator(),
-                            width: 40,
-                            height: 40,
-                          ),
-                          SizedBox(
-                            height: 15,
-                          ),
-                        ]);
-                      }
-                      children.insert(
-                          0,
-                          SizedBox(
-                            height: 25,
-                          ));
-                    }
-                    return Column(children: children);
-                  },
-                ),
-              ),),),
+                      break;
+                  }
+                } else {
+                  children = <Widget>[
+                    SizedBox(
+                      child: CircularProgressIndicator(),
+                      width: 40,
+                      height: 40,
+                    ),
+                    SizedBox(
+                      height: 15,
+                    ),
+                    Text('Beginning website scan'),
+                  ];
+                }
+                if (children.isEmpty) {
+                  children = [
+                    SizedBox(
+                      height: 25,
+                    ),
+                    Icon(Icons.error, color: Colors.red, size: 40),
+                    if (errMessage.isEmpty) Text("Encountered Unknown Issue"),
+                    if (errMessage.isNotEmpty) Text("Encountered issue:"),
+                    if (errMessage.isNotEmpty) Text(errMessage.toString()),
+                  ];
+                } else {
+                  if (snapshot.data != 5) {
+                    children.insertAll(0, [
+                      SizedBox(
+                        child: CircularProgressIndicator(),
+                        width: 40,
+                        height: 40,
+                      ),
+                      SizedBox(
+                        height: 15,
+                      ),
+                    ]);
+                  }
+                  children.insert(
+                      0,
+                      SizedBox(
+                        height: 25,
+                      ));
+                }
+                return Column(children: children);
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
