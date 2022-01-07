@@ -4,17 +4,19 @@ library t;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart';
 import 'package:js/js.dart';
 import 'package:http/http.dart' as http;
-import 'package:js/js_util.dart';
-import 'package:quiver/strings.dart';
+import 'package:js/js_util.dart' as js_utils;
 import 'package:html/parser.dart' show parse;
 import 'package:html/dom.dart' as dom show Element;
 
 // JS interop for requesting url
 @JS()
 external Future<String> getCurrentUrl();
+
+bool equalsIgnoreCase(String? a, String? b) =>
+    (a == null && b == null) ||
+    (a != null && b != null && a.toLowerCase() == b.toLowerCase());
 
 void main() {
   runApp(MyApp());
@@ -56,15 +58,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Stream<int> runDown(Duration interval) async* {
     try {
-
-      String siteUrl = await promiseToFuture(getCurrentUrl());
+      String siteUrl = await js_utils.promiseToFuture(getCurrentUrl());
 
       yield 1;
       await Future.delayed(interval);
 
       // Get website source
       yield 2;
-      Response urlResponse;
+      http.Response urlResponse;
       urlResponse = await http.get(Uri.parse(siteUrl));
 
       // check if the website has a permissions-policy : interest-cohort=() set to block the data collection of FLoC
